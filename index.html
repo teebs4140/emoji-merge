@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Emoji Merge</title>
+    <link rel="stylesheet" href="./styles/main.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="hud">
+        <div class="logo">Emoji Merge</div>
+        <div class="scoreboard">
+          <span>Score:</span>
+          <span id="score-value">0</span>
+        </div>
+        <div class="next-emoji">
+          <span>Next:</span>
+          <span id="next-emoji">🐭</span>
+        </div>
+      </header>
+      <main class="game-shell">
+        <div class="playfield">
+          <canvas id="game-canvas" width="480" height="720"></canvas>
+          <div class="drop-preview">
+            <span id="current-emoji">🐭</span>
+            <small>Tap or click to drop</small>
+          </div>
+        </div>
+        <aside class="emoji-ladder" aria-label="Emoji ladder">
+          <h3>Emoji Ladder</h3>
+          <ol id="emoji-ladder-list" class="ladder-list"></ol>
+        </aside>
+      </main>
+      <div class="modal hidden" id="modal">
+        <div class="modal-content">
+          <h2 id="modal-title">Game Over</h2>
+          <p id="modal-message">Emojis overflowed the basket.</p>
+          <button id="restart-button">Play Again</button>
+        </div>
+      </div>
+    </div>
+    <script src="./vendor/matter.min.js"></script>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
