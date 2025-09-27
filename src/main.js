@@ -61,6 +61,8 @@ const state = {
   mergeQueue: [],
   mergingBodies: new Set(),
   highestTierReached: -1,
+  backgroundAudio: null,
+  audioActivated: false,
 };
 
 const ui = {
@@ -105,6 +107,16 @@ function randomTier() {
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
+}
+
+function prepareBackgroundAudio() {
+  if (state.backgroundAudio) return;
+  const audio = new Audio("./resources/hard.mp3");
+  audio.loop = true;
+  audio.volume = 0.2;
+  audio.preload = "auto";
+  audio.load();
+  state.backgroundAudio = audio;
 }
 
 function buildLadderUI() {
@@ -385,6 +397,7 @@ function attachInputHandlers() {
   let pointerDown = false;
 
   ui.canvas.addEventListener("pointerdown", (event) => {
+    tryStartBackgroundAudio();
     pointerDown = true;
     ui.canvas.setPointerCapture(event.pointerId);
     handlePointerMove(event);
@@ -409,6 +422,7 @@ function attachInputHandlers() {
   window.addEventListener("keydown", (event) => {
     if (event.code === "Space") {
       event.preventDefault();
+      tryStartBackgroundAudio();
       dropEmoji();
     }
     if (event.code === "ArrowLeft") {
@@ -418,6 +432,11 @@ function attachInputHandlers() {
       state.dropX += 16;
     }
   });
+}
+
+function handleFirstInteraction() {
+  prepareBackgroundAudio();
+  tryStartBackgroundAudio();
 }
 
 function attachUIHandlers() {
@@ -432,6 +451,22 @@ function attachUIHandlers() {
   });
 }
 
+function tryStartBackgroundAudio() {
+  if (!state.backgroundAudio || state.audioActivated) return;
+  const playPromise = state.backgroundAudio.play();
+  if (playPromise && typeof playPromise.then === "function") {
+    playPromise
+      .then(() => {
+        state.audioActivated = true;
+      })
+      .catch(() => {
+        // Autoplay might be blocked; will retry on next interaction.
+      });
+  } else {
+    state.audioActivated = true;
+  }
+}
+
 function restartGame() {
   const bodies = Composite.allBodies(state.engine.world);
   for (const body of bodies) {
@@ -444,23 +479,73 @@ function restartGame() {
 }
 
 function drawBackground() {
+  const floorY = CANVAS_SIZE.height - CONTAINER.floorOffset;
+  const innerWidth = CONTAINER.width;
+  const innerHeight = CONTAINER.height;
+  const innerX = (CANVAS_SIZE.width - innerWidth) / 2;
+  const innerY = floorY - innerHeight;
+
+  const framePadding = 24;
+  const outerX = innerX - framePadding;
+  const outerY = innerY - 48;
+  const outerWidth = innerWidth + framePadding * 2;
+  const outerHeight = innerHeight + framePadding + 72;
+
   ctx.save();
-  ctx.fillStyle = "rgba(47, 79, 61, 0.92)";
-  const rectWidth = CONTAINER.width + 12;
-  const rectHeight = CONTAINER.height + 28;
-  const x = (CANVAS_SIZE.width - rectWidth) / 2;
-  const y = CANVAS_SIZE.height - CONTAINER.floorOffset - rectHeight + 20;
-  ctx.roundRect(x, y, rectWidth, rectHeight, 24);
+  ctx.fillStyle = "rgba(47, 36, 24, 0.82)";
+  ctx.beginPath();
+  ctx.roundRect(outerX, outerY, outerWidth, outerHeight, 28);
   ctx.fill();
   ctx.restore();
 
   ctx.save();
-  ctx.lineWidth = 2;
+  const wallGradient = ctx.createLinearGradient(0, innerY, 0, innerY + innerHeight);
+  wallGradient.addColorStop(0, "rgba(38, 56, 42, 0.9)");
+  wallGradient.addColorStop(1, "rgba(18, 28, 22, 0.95)");
+  ctx.fillStyle = wallGradient;
+  ctx.fillRect(innerX, innerY, innerWidth, innerHeight);
+  ctx.restore();
+
+  ctx.save();
+  ctx.fillStyle = "rgba(104, 78, 48, 0.95)";
+  const canopyHeight = 32;
+  ctx.fillRect(outerX + 8, innerY - canopyHeight - 6, outerWidth - 16, canopyHeight);
+  ctx.restore();
+
+  ctx.save();
+  ctx.strokeStyle = "rgba(220, 222, 214, 0.55)";
+  ctx.lineWidth = 6;
+  ctx.lineCap = "round";
+  const barCount = 5;
+  const spacing = innerWidth / (barCount + 1);
+  for (let i = 1; i <= barCount; i += 1) {
+    const barX = innerX + spacing * i;
+    ctx.beginPath();
+    ctx.moveTo(barX, innerY - 4);
+    ctx.lineTo(barX, innerY + innerHeight + 8);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  ctx.save();
+  ctx.fillStyle = "rgba(82, 58, 36, 0.95)";
+  const sideRailWidth = 16;
+  ctx.fillRect(innerX - sideRailWidth, innerY - 12, sideRailWidth, innerHeight + 36);
+  ctx.fillRect(innerX + innerWidth, innerY - 12, sideRailWidth, innerHeight + 36);
+  ctx.restore();
+
+  ctx.save();
+  const baseHeight = 40;
+  ctx.fillStyle = "rgba(72, 52, 30, 0.95)";
+  ctx.fillRect(outerX + 6, floorY + 6, outerWidth - 12, baseHeight);
+  ctx.restore();
+
+  ctx.save();
   ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
-  const topY = PLAYFIELD_TOP;
+  ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo((CANVAS_SIZE.width - CONTAINER.width) / 2, topY);
-  ctx.lineTo((CANVAS_SIZE.width + CONTAINER.width) / 2, topY);
+  ctx.moveTo(innerX, innerY);
+  ctx.lineTo(innerX + innerWidth, innerY);
   ctx.stroke();
   ctx.restore();
 }
@@ -495,6 +580,9 @@ function renderLoop() {
 
 function init() {
   configureCanvas();
+  prepareBackgroundAudio();
+  document.addEventListener("pointerdown", handleFirstInteraction, { once: true });
+  document.addEventListener("keydown", handleFirstInteraction, { once: true });
   buildLadderUI();
   window.addEventListener("resize", () => {
     ctx.resetTransform();

@@ -35,7 +35,7 @@
 - **Physics world** tuned gravity, restitution, damping; static bodies for container walls and floor.
 - **Merge handler** listens for collision-start events, validates matching tiers, schedules merge after physics step to avoid instability.
 - **Score & UI** scoreboard, highest tier notification, progress bar to the top emoji.
-- **Audio & FX (stretch goal)** gentle pop, sparkle particles, subtle screen shake on high-tier merges.
+- **Audio & FX** loop quiet zoo ambience (`hard.mp3`), gentle pop, sparkle particles, subtle screen shake on high-tier merges.
 - **Accessibility**: Provide emoji labels, toggles for reduced motion, keyboard fallback to drop (space bar).
 
 ## Development Milestones
