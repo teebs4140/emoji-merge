@@ -445,7 +445,7 @@ function restartGame() {
 
 function drawBackground() {
   ctx.save();
-  ctx.fillStyle = "rgba(18, 26, 45, 0.9)";
+  ctx.fillStyle = "rgba(47, 79, 61, 0.92)";
   const rectWidth = CONTAINER.width + 12;
   const rectHeight = CONTAINER.height + 28;
   const x = (CANVAS_SIZE.width - rectWidth) / 2;
@@ -456,7 +456,7 @@ function drawBackground() {
 
   ctx.save();
   ctx.lineWidth = 2;
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
   const topY = PLAYFIELD_TOP;
   ctx.beginPath();
   ctx.moveTo((CANVAS_SIZE.width - CONTAINER.width) / 2, topY);
