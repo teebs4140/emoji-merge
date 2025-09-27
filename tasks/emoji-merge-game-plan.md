@@ -31,7 +31,7 @@
 
 ## Systems Breakdown
 - **Game state manager** flags for `ready`, `dropping`, `merging`, `gameOver`, `victory`.
-- **Spawner** queue keeps `currentEmoji` and `nextEmoji` surfaces; random selection weighted to lower tiers to manage difficulty.
+- **Spawner** queue keeps `currentEmoji` and `nextEmoji`; drop pool limited to the first three tiers (🐭/🐹/🐸) so progression relies on in-container merging.
 - **Physics world** tuned gravity, restitution, damping; static bodies for container walls and floor.
 - **Merge handler** listens for collision-start events, validates matching tiers, schedules merge after physics step to avoid instability.
 - **Score & UI** scoreboard, highest tier notification, progress bar to the top emoji.

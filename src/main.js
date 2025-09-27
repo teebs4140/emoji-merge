@@ -60,7 +60,7 @@ const state = {
   dropX: CANVAS_SIZE.width / 2,
   mergeQueue: [],
   mergingBodies: new Set(),
-  highestTierReached: 0,
+  highestTierReached: -1,
 };
 
 const ui = {
@@ -89,17 +89,18 @@ function configureCanvas() {
 }
 
 function randomTier() {
-  // Weighted distribution favoring lower tiers
-  const weights = [35, 30, 15, 10, 6, 2, 1, 1, 0, 0];
-  const total = weights.reduce((sum, weight) => sum + weight, 0);
-  let roll = Math.random() * total;
-  for (let i = 0; i < weights.length; i += 1) {
-    roll -= weights[i];
-    if (roll <= 0) {
-      return i;
+  // Only spawn from the first three tiers so players must merge upward
+  const tiers = [0, 1, 2];
+  const weights = [0.5, 0.35, 0.15];
+  const roll = Math.random();
+  let accumulator = 0;
+  for (let i = 0; i < tiers.length; i += 1) {
+    accumulator += weights[i];
+    if (roll <= accumulator) {
+      return tiers[i];
     }
   }
-  return 0;
+  return tiers[0];
 }
 
 function clamp(value, min, max) {
@@ -129,8 +130,10 @@ function buildLadderUI() {
 
 function refreshLadderUI() {
   ladderItems.forEach((item, index) => {
-    item.classList.toggle("current", index === state.currentTier && !state.isGameOver);
-    item.classList.toggle("reached", index <= state.highestTierReached);
+    const isHighest = state.highestTierReached >= 0 && index === state.highestTierReached;
+    const isReached = state.highestTierReached >= 0 && index <= state.highestTierReached;
+    item.classList.toggle("highest", isHighest);
+    item.classList.toggle("reached", isReached);
   });
 }
 
@@ -144,7 +147,7 @@ function resetState() {
   state.mergingBodies.clear();
   state.currentTier = randomTier();
   state.nextTier = randomTier();
-  state.highestTierReached = state.currentTier;
+  state.highestTierReached = -1;
   updateQueueUI();
   updateScoreUI();
   refreshLadderUI();
