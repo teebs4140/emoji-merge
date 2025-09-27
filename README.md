@@ -1,5 +1,7 @@
 # Emoji Merge Game 🐭
 
+🎮 **[Play the Game](https://teebs4140.github.io/emoji-merge/)**
+
 A browser-based physics puzzle game where players drop emojis into a container, merging identical emojis to create higher-tier variants. Inspired by popular merge games, this implementation uses a playful emoji progression system with satisfying physics-based gameplay.
 
 ## 🎮 Game Features
