@@ -111,7 +111,7 @@ function clamp(value, min, max) {
 
 function prepareBackgroundAudio() {
   if (state.backgroundAudio) return;
-  const audio = new Audio("./resources/hard.mp3");
+  const audio = new Audio("./resources/safari-sounds.mp3?v=" + Date.now());
   audio.loop = true;
   audio.volume = 0.2;
   audio.preload = "auto";
