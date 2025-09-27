@@ -59,6 +59,22 @@ body {
   font-size: 0.95rem;
 }
 
+.mute-button {
+  background: var(--bg-panel);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 1.2rem;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mute-button:hover {
+  background: rgba(255, 172, 51, 0.1);
+  border-color: var(--accent);
+}
+
 .game-shell {
   display: flex;
   gap: 18px;

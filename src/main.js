@@ -63,6 +63,7 @@ const state = {
   highestTierReached: -1,
   backgroundAudio: null,
   audioActivated: false,
+  muted: false,
 };
 
 const ui = {
@@ -75,6 +76,7 @@ const ui = {
   modalTitle: document.getElementById("modal-title"),
   modalMessage: document.getElementById("modal-message"),
   restartButton: document.getElementById("restart-button"),
+  muteButton: document.getElementById("mute-button"),
 };
 
 const ctx = ui.canvas.getContext("2d");
@@ -109,14 +111,37 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
-function prepareBackgroundAudio() {
+async function prepareBackgroundAudio() {
   if (state.backgroundAudio) return;
-  const audio = new Audio("./resources/safari-sounds.mp3");
-  audio.loop = true;
-  audio.volume = 0.2;
-  audio.preload = "auto";
-  audio.load();
-  state.backgroundAudio = audio;
+
+  try {
+    // Use Web Audio API for seamless looping
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const response = await fetch("./resources/safari-sounds.mp3");
+    const arrayBuffer = await response.arrayBuffer();
+    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+    const source = audioContext.createBufferSource();
+    const gainNode = audioContext.createGain();
+
+    source.buffer = audioBuffer;
+    source.loop = true;
+    gainNode.gain.value = 0.2;
+
+    source.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+
+    state.backgroundAudio = { context: audioContext, source, gainNode };
+  } catch (error) {
+    console.log("Web Audio API failed, falling back to HTML5 audio");
+    // Fallback to HTML5 Audio
+    const audio = new Audio("./resources/safari-sounds.mp3");
+    audio.loop = true;
+    audio.volume = 0.2;
+    audio.preload = "auto";
+    audio.load();
+    state.backgroundAudio = audio;
+  }
 }
 
 function buildLadderUI() {
@@ -449,10 +474,26 @@ function attachUIHandlers() {
       restartGame();
     }
   });
+
+  ui.muteButton.addEventListener("click", toggleMute);
 }
 
 function tryStartBackgroundAudio() {
-  if (!state.backgroundAudio || state.audioActivated) return;
+  if (!state.backgroundAudio || state.audioActivated || state.muted) return;
+
+  // Handle Web Audio API
+  if (state.backgroundAudio.source) {
+    try {
+      state.backgroundAudio.context.resume();
+      state.backgroundAudio.source.start();
+      state.audioActivated = true;
+    } catch (error) {
+      console.log("Web Audio start failed:", error);
+    }
+    return;
+  }
+
+  // Handle HTML5 Audio fallback
   const playPromise = state.backgroundAudio.play();
   if (playPromise && typeof playPromise.then === "function") {
     playPromise
@@ -464,6 +505,41 @@ function tryStartBackgroundAudio() {
       });
   } else {
     state.audioActivated = true;
+  }
+}
+
+function toggleMute() {
+  state.muted = !state.muted;
+
+  if (state.muted) {
+    // Mute audio
+    if (state.backgroundAudio && state.audioActivated) {
+      if (state.backgroundAudio.gainNode) {
+        // Web Audio API
+        state.backgroundAudio.gainNode.gain.value = 0;
+      } else {
+        // HTML5 Audio
+        state.backgroundAudio.volume = 0;
+      }
+    }
+    ui.muteButton.textContent = "🔇";
+  } else {
+    // Unmute audio
+    if (state.backgroundAudio && state.audioActivated) {
+      if (state.backgroundAudio.gainNode) {
+        // Web Audio API
+        state.backgroundAudio.gainNode.gain.value = 0.2;
+      } else {
+        // HTML5 Audio
+        state.backgroundAudio.volume = 0.2;
+      }
+    }
+    ui.muteButton.textContent = "🔊";
+
+    // If audio hasn't started yet, try to start it
+    if (!state.audioActivated) {
+      tryStartBackgroundAudio();
+    }
   }
 }
 
