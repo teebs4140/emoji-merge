@@ -7,10 +7,11 @@ A browser-based physics puzzle game where players drop emojis into a container, 
 ## 🎮 Game Features
 
 - **Physics-based gameplay**: Drop and merge emojis with realistic physics
-- **10-tier progression system**: Start with 🐭 and work your way up to 🐻‍❄️
+- **13-tier progression system**: Start with 🐭 and work your way up to 🐲
 - **Chain reactions**: Create satisfying cascades of merges
 - **Score tracking**: Track your points as you merge higher-tier emojis
-- **Win/lose conditions**: Reach the top tier without overflowing the container
+- **Bonus exhibit**: Unlock mythical creatures mid-run once you reach the polar bear
+- **Win/lose conditions**: Reach the dragon without overflowing the container
 
 ## 🎯 How to Play
 
@@ -19,7 +20,7 @@ A browser-based physics puzzle game where players drop emojis into a container, 
 3. When two identical emojis touch, they merge into the next tier
 4. Keep merging to reach higher tiers and increase your score
 5. Don't let emojis overflow the container!
-6. Reach the polar bear (🐻‍❄️) to win!
+6. Reach the polar bear (🐻‍❄️) to unlock the bonus exhibit, then continue merging up to the dragon (🐲) to fully conquer the zoo!
 
 ## 📊 Emoji Progression
 
@@ -32,7 +33,10 @@ A browser-based physics puzzle game where players drop emojis into a container, 
 7. 🐶 Dog
 8. 🐻 Bear
 9. 🦁 Lion
-10. 🐻‍❄️ Polar Bear (win condition)
+10. 🐻‍❄️ Polar Bear
+11. 🫎 Moose (bonus)
+12. 🦄 Unicorn (bonus)
+13. 🐲 Dragon (final win condition)
 
 ## 🛠 Technical Stack
 
@@ -44,7 +48,7 @@ A browser-based physics puzzle game where players drop emojis into a container, 
 ## 📁 Project Structure
 
 ```
-life-sim/
+emoji-merge/
 ├── index.html          # Main game HTML
 ├── src/
 │   └── main.js        # Core game logic
@@ -54,6 +58,8 @@ life-sim/
 │   └── matter.min.js  # Physics engine library
 ├── assets/            # Game assets (if any)
 ├── resources/         # Additional resources
+├── tests/
+│   └── bonus-level-smoke.html  # Automated UI smoke test for the bonus level
 └── tasks/
     └── emoji-merge-game-plan.md  # Development plan
 ```
@@ -63,7 +69,7 @@ life-sim/
 1. Clone the repository:
    ```bash
    git clone [repository-url]
-   cd life-sim
+   cd emoji-merge
    ```
 
 2. Open the game in your browser:
@@ -73,6 +79,9 @@ life-sim/
      python -m http.server 8000
      # Then navigate to http://localhost:8000
      ```
+3. (Optional) Run the bonus-level smoke test:
+   - With the dev server running, open `http://localhost:8000/tests/bonus-level-smoke.html`
+   - The page will automatically verify that the victory modal exposes the bonus level and that selecting it extends the run with the mythical tier list
 
 ## 🎨 Development
 

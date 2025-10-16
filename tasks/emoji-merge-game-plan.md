@@ -18,9 +18,13 @@
   7. 🐶
   8. 🐻
   9. 🦁
-  10. 🐻‍❄️ (win condition)
+  10. 🐻‍❄️
+  11. 🫎
+  12. 🦄
+  13. 🐲 (win condition)
 - **Merge rule**: When two bodies of the same tier sleep-touch, they merge into the next tier at the collision point, emit particles, and increase score.
-- **Fail state**: If any emoji crosses the container rim after settling, game over. Clearing all tiers up to 🐻‍❄️ triggers win modal.
+- **Fail state**: If any emoji crosses the container rim after settling, game over. Clearing all tiers up to 🐻‍❄️ unlocks additional tiers and the run continues until 🐲 is reached.
+- **Bonus level**: Clearing the main ladder extends the same play session with the mythical trio (🫎/🦄/🐲) appended to the ladder, preserving the existing stack while introducing the tougher finale.
 
 ## Technical Stack
 - **Rendering**: HTML5 Canvas for performant sprite drawing and post-processing glow.
@@ -35,7 +39,7 @@
 - **Physics world** tuned gravity, restitution, damping; static bodies for container walls and floor.
 - **Merge handler** listens for collision-start events, validates matching tiers, schedules merge after physics step to avoid instability.
 - **Score & UI** scoreboard, highest tier notification, progress bar to the top emoji.
-- **Audio & FX** loop quiet zoo ambience (`hard.mp3`), gentle pop, sparkle particles, subtle screen shake on high-tier merges.
+- **Audio & FX** loop quiet zoo ambience (`safari-sounds.mp3`), gentle pop, sparkle particles, subtle screen shake on high-tier merges.
 - **Accessibility**: Provide emoji labels, toggles for reduced motion, keyboard fallback to drop (space bar).
 
 ## Development Milestones

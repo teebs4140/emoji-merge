@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Emoji Merge – Bonus Level Smoke Test</title>
+    <link rel="stylesheet" href="../styles/main.css" />
+    <style>
+      body {
+        max-width: 840px;
+        margin: 0 auto;
+      }
+      .test-panel {
+        margin-bottom: 16px;
+        padding: 16px;
+        border-radius: 12px;
+        background: rgba(0, 0, 0, 0.45);
+        color: #fff;
+        font-family: "Inter", system-ui;
+      }
+      .result {
+        font-weight: 700;
+      }
+      .pass {
+        color: #8dff8a;
+      }
+      .fail {
+        color: #ff8a8a;
+      }
+      .log {
+        margin-top: 12px;
+        font-size: 0.85rem;
+        line-height: 1.5;
+        max-height: 160px;
+        overflow-y: auto;
+        padding-right: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <section class="test-panel">
+      <h1>Bonus Level Smoke Test</h1>
+      <p>This automated smoke test verifies that finishing the main game unlocks the bonus exhibit and that selecting it extends the current run with the bonus tier list.</p>
+      <p class="result" id="test-result">Pending…</p>
+      <div class="log" id="test-log"></div>
+      <p><strong>How to run:</strong> Serve the project (for example, <code>python -m http.server 8000</code>) and open <code>/tests/bonus-level-smoke.html</code> in your browser. The test drives the UI for you.</p>
+    </section>
+
+    <script>
+      window.EMOJI_MERGE_CONFIG = {
+        autoShowVictoryModal: true,
+      };
+
+      const resultEl = document.getElementById("test-result");
+      const logEl = document.getElementById("test-log");
+
+      function log(message) {
+        const timestamp = new Date().toLocaleTimeString();
+        const entry = document.createElement("div");
+        entry.textContent = `[${timestamp}] ${message}`;
+        logEl.appendChild(entry);
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+
+      function markPass(message) {
+        resultEl.textContent = `PASS – ${message}`;
+        resultEl.classList.remove("fail");
+        resultEl.classList.add("pass");
+        log(message);
+      }
+
+      function markFail(message) {
+        resultEl.textContent = `FAIL – ${message}`;
+        resultEl.classList.remove("pass");
+        resultEl.classList.add("fail");
+        log(message);
+      }
+
+      let bonusSelected = false;
+
+      window.addEventListener("emoji-merge:ready", (event) => {
+        log(`Game ready on level: ${event.detail.level}`);
+      });
+
+      window.addEventListener("emoji-merge:victory", (event) => {
+        log(`Victory modal shown for level: ${event.detail.level}`);
+        if (event.detail.level !== "base") {
+          markFail("Expected victory to trigger on the base ladder first");
+          return;
+        }
+        if (!event.detail.bonusAvailable) {
+          markFail("Bonus option was not advertised on victory");
+          return;
+        }
+        const bonusButton = document.getElementById("bonus-button");
+        if (!bonusButton) {
+          markFail("Bonus button not present in the modal");
+          return;
+        }
+        if (bonusButton.classList.contains("hidden")) {
+          markFail("Bonus button hidden after victory");
+          return;
+        }
+        log("Clicking bonus button");
+        bonusSelected = true;
+        setTimeout(() => bonusButton.click(), 150);
+      });
+
+      window.addEventListener("emoji-merge:level-change", (event) => {
+        log(`Level changed to: ${event.detail.level}`);
+      });
+
+      window.addEventListener("emoji-merge:game-over", (event) => {
+        log(`Game over detected on level: ${event.detail.level}`);
+      });
+
+      window.addEventListener("emoji-merge:bonus-start", (event) => {
+        const resumed = event.detail && event.detail.resumed ? "true" : "false";
+        log(`Bonus level started (resumed=${resumed})`);
+        if (bonusSelected && !resultEl.classList.contains("pass")) {
+          markPass("Bonus level extended the ladder without restarting the board");
+        }
+      });
+
+      setTimeout(() => {
+        if (!resultEl.classList.contains("pass")) {
+          markFail("Timed out waiting for bonus level to load");
+        }
+      }, 6000);
+    </script>
+
+    <div id="app">
+      <header class="hud">
+        <div class="logo">Emoji Merge (Test Harness)</div>
+        <div class="scoreboard">
+          <span>Score:</span>
+          <span id="score-value">0</span>
+        </div>
+        <div class="next-emoji">
+          <span>Next:</span>
+          <span id="next-emoji">🐭</span>
+        </div>
+        <button id="mute-button" class="mute-button">🔊</button>
+      </header>
+      <main class="game-shell">
+        <div class="playfield">
+          <canvas id="game-canvas" width="480" height="720"></canvas>
+          <div class="drop-preview">
+            <span id="current-emoji">🐭</span>
+            <small>Tap or click to drop</small>
+          </div>
+        </div>
+        <aside class="emoji-ladder" aria-label="Emoji ladder">
+          <h3>Emoji Ladder</h3>
+          <ol id="emoji-ladder-list" class="ladder-list"></ol>
+        </aside>
+      </main>
+      <div class="modal hidden" id="modal">
+        <div class="modal-content">
+          <h2 id="modal-title">Game Over</h2>
+          <p id="modal-message">Emojis overflowed the basket.</p>
+          <div class="modal-actions">
+            <button id="restart-button" class="primary-button">Play Again</button>
+            <button id="bonus-button" class="secondary-button hidden">Bonus Level</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="../vendor/matter.min.js"></script>
+    <script type="module" src="../src/main.js"></script>
+  </body>
+</html>

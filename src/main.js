@@ -8,7 +8,7 @@ const {
   Vector,
 } = Matter;
 
-const EMOJI_TIERS = [
+const BASE_TIERS = [
   "🐭",
   "🐹",
   "🐸",
@@ -21,17 +21,55 @@ const EMOJI_TIERS = [
   "🐻‍❄️",
 ];
 
-const TIER_DATA = EMOJI_TIERS.map((emoji, index) => {
-  const baseRadius = 26;
-  const radius = baseRadius + index * 5;
-  return {
-    emoji,
-    index,
-    radius,
-    score: (index + 1) * 12,
-    fontSize: Math.round(radius * 2 * 0.95),
+const BONUS_TIERS = ["🫎", "🦄", "🐲"];
+
+const LEVEL_DEFINITIONS = {
+  base: BASE_TIERS,
+  extended: [...BASE_TIERS, ...BONUS_TIERS],
+};
+
+const BASE_RADIUS = 26;
+
+function createTierData(list) {
+  return list.map((emoji, index) => {
+    const radius = BASE_RADIUS + index * 5;
+    return {
+      emoji,
+      index,
+      radius,
+      score: (index + 1) * 12,
+      fontSize: Math.round(radius * 2 * 0.95),
+    };
+  });
+}
+
+function createRuntimeConfig() {
+  const defaults = {
+    startLevel: "base",
+    autoShowVictoryModal: false,
   };
-});
+
+  const params = new URLSearchParams(window.location.search);
+  const fromUrl = {};
+  const mode = params.get("mode");
+  if (mode && LEVEL_DEFINITIONS[mode]) {
+    fromUrl.startLevel = mode;
+  }
+  if (params.has("autoVictory")) {
+    const value = params.get("autoVictory");
+    fromUrl.autoShowVictoryModal = value === null || value === "" || value === "1" || value === "true";
+  }
+
+  return {
+    ...defaults,
+    ...fromUrl,
+    ...(window.EMOJI_MERGE_CONFIG || {}),
+  };
+}
+
+function emit(eventName, detail = {}) {
+  window.dispatchEvent(new CustomEvent(`emoji-merge:${eventName}`, { detail }));
+}
 
 const SPAWN_Y = 100;
 const PLAYFIELD_TOP = 140;
@@ -64,7 +102,14 @@ const state = {
   backgroundAudio: null,
   audioActivated: false,
   muted: false,
+  level: "base",
+  emojiTiers: [...BASE_TIERS],
+  tierData: createTierData(BASE_TIERS),
+  forceMainRestart: false,
+  bonusUnlocked: false,
 };
+
+const config = createRuntimeConfig();
 
 const ui = {
   canvas: document.getElementById("game-canvas"),
@@ -77,6 +122,7 @@ const ui = {
   modalMessage: document.getElementById("modal-message"),
   restartButton: document.getElementById("restart-button"),
   muteButton: document.getElementById("mute-button"),
+  bonusButton: document.getElementById("bonus-button"),
 };
 
 const ctx = ui.canvas.getContext("2d");
@@ -93,9 +139,19 @@ function configureCanvas() {
 }
 
 function randomTier() {
-  // Only spawn from the first three tiers so players must merge upward
-  const tiers = [0, 1, 2];
-  const weights = [0.5, 0.35, 0.15];
+  // Spawn pool is limited to the lowest tiers to encourage merging
+  const poolSize = Math.min(3, state.emojiTiers.length);
+  const tiers = Array.from({ length: poolSize }, (_, index) => index);
+  let weights;
+
+  if (poolSize === 1) {
+    weights = [1];
+  } else if (poolSize === 2) {
+    weights = [0.7, 0.3];
+  } else {
+    weights = [0.55, 0.3, 0.15];
+  }
+
   const roll = Math.random();
   let accumulator = 0;
   for (let i = 0; i < tiers.length; i += 1) {
@@ -111,43 +167,34 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
-async function prepareBackgroundAudio() {
+function setLevel(level) {
+  if (!LEVEL_DEFINITIONS[level]) {
+    throw new Error(`Unknown level: ${level}`);
+  }
+  state.level = level;
+  state.emojiTiers = [...LEVEL_DEFINITIONS[level]];
+  state.tierData = createTierData(state.emojiTiers);
+  state.bonusUnlocked = level === "extended";
+  buildLadderUI();
+  refreshLadderUI();
+  emit("level-change", { level });
+}
+
+function prepareBackgroundAudio() {
   if (state.backgroundAudio) return;
 
-  try {
-    // Use Web Audio API for seamless looping
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    const response = await fetch("./resources/safari-sounds.mp3");
-    const arrayBuffer = await response.arrayBuffer();
-    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-
-    const source = audioContext.createBufferSource();
-    const gainNode = audioContext.createGain();
-
-    source.buffer = audioBuffer;
-    source.loop = true;
-    gainNode.gain.value = 0.2;
-
-    source.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-
-    state.backgroundAudio = { context: audioContext, source, gainNode };
-  } catch (error) {
-    console.log("Web Audio API failed, falling back to HTML5 audio");
-    // Fallback to HTML5 Audio
-    const audio = new Audio("./resources/safari-sounds.mp3");
-    audio.loop = true;
-    audio.volume = 0.2;
-    audio.preload = "auto";
-    audio.load();
-    state.backgroundAudio = audio;
-  }
+  const audio = new Audio("/resources/safari-sounds.mp3");
+  audio.loop = true;
+  audio.volume = 0.2;
+  audio.preload = "auto";
+  audio.load();
+  state.backgroundAudio = audio;
 }
 
 function buildLadderUI() {
   ui.ladderList.innerHTML = "";
   ladderItems.length = 0;
-  EMOJI_TIERS.forEach((emoji, index) => {
+  state.emojiTiers.forEach((emoji, index) => {
     const li = document.createElement("li");
     li.className = "ladder-item";
 
@@ -178,6 +225,7 @@ function resetState() {
   state.score = 0;
   state.isGameOver = false;
   state.isVictory = false;
+  state.forceMainRestart = false;
   state.isDroppingLocked = false;
   state.activeBody = null;
   state.mergeQueue = [];
@@ -189,11 +237,12 @@ function resetState() {
   updateScoreUI();
   refreshLadderUI();
   hideModal();
+  emit("state-reset", { level: state.level });
 }
 
 function updateQueueUI() {
-  ui.currentEmoji.textContent = EMOJI_TIERS[state.currentTier];
-  ui.nextEmoji.textContent = EMOJI_TIERS[state.nextTier];
+  ui.currentEmoji.textContent = state.emojiTiers[state.currentTier] ?? "❓";
+  ui.nextEmoji.textContent = state.emojiTiers[state.nextTier] ?? "❓";
   refreshLadderUI();
 }
 
@@ -201,9 +250,25 @@ function updateScoreUI() {
   ui.score.textContent = state.score.toString();
 }
 
-function showModal(title, message) {
-  ui.modalTitle.textContent = title;
-  ui.modalMessage.textContent = message;
+function showModal(title, message, options = {}) {
+  if (title) ui.modalTitle.textContent = title;
+  if (message) ui.modalMessage.textContent = message;
+
+  if (options.restartLabel) {
+    ui.restartButton.textContent = options.restartLabel;
+  } else {
+    ui.restartButton.textContent = "Play Again";
+  }
+
+  if (ui.bonusButton) {
+    if (options.showBonus) {
+      ui.bonusButton.classList.remove("hidden");
+      ui.bonusButton.textContent = options.bonusLabel || "Bonus Level";
+    } else {
+      ui.bonusButton.classList.add("hidden");
+    }
+  }
+
   ui.modal.classList.remove("hidden");
 }
 
@@ -276,7 +341,7 @@ function onCollisionStart(event) {
     const tierA = bodyA.gameData.tier;
     const tierB = bodyB.gameData.tier;
     if (tierA !== tierB) continue;
-    if (tierA >= EMOJI_TIERS.length - 1) continue; // already max tier
+    if (tierA >= state.emojiTiers.length - 1) continue; // already max tier
     if (state.mergingBodies.has(bodyA.id) || state.mergingBodies.has(bodyB.id)) continue;
 
     state.mergingBodies.add(bodyA.id);
@@ -315,7 +380,10 @@ function processMergeQueue() {
     state.mergingBodies.delete(bodyB.id);
 
     const nextTier = tier + 1;
-    const nextData = TIER_DATA[nextTier];
+    const nextData = state.tierData[nextTier];
+    if (!nextData) {
+      continue;
+    }
 
     const merged = Bodies.circle(position.x, position.y, nextData.radius, {
       restitution: 0.35,
@@ -331,7 +399,7 @@ function processMergeQueue() {
     updateScoreUI();
     refreshLadderUI();
 
-    if (nextTier === EMOJI_TIERS.length - 1) {
+    if (nextTier === state.emojiTiers.length - 1) {
       triggerVictory();
     }
   }
@@ -366,8 +434,15 @@ function triggerGameOver() {
   if (state.isGameOver) return;
   state.isGameOver = true;
   state.isDroppingLocked = true;
+  state.forceMainRestart = false;
   refreshLadderUI();
-  showModal("Game Over", "Emojis overflowed the basket.");
+  const message =
+    state.level === "extended"
+      ? "The mythical beasts escaped the enclosure. Want to try again?"
+      : "The animals overflowed the enclosure.";
+  const restartLabel = state.level === "extended" ? "Retry Bonus" : "Play Again";
+  showModal("Game Over", message, { showBonus: false, restartLabel });
+  emit("game-over", { level: state.level });
 }
 
 function triggerVictory() {
@@ -376,14 +451,31 @@ function triggerVictory() {
   state.isGameOver = true;
   state.isDroppingLocked = true;
   refreshLadderUI();
-  showModal("You Win!", "You unlocked the final emoji!");
+  if (state.level === "base" && !state.bonusUnlocked) {
+    state.forceMainRestart = false;
+    showModal("Bonus Unlocked!", "You reached the polar bear! Continue into the bonus exhibit?", {
+      showBonus: true,
+      bonusLabel: "Play Bonus Level",
+      restartLabel: "Restart Base Game",
+    });
+    emit("victory", { level: state.level, bonusAvailable: true });
+    return;
+  }
+
+  state.forceMainRestart = true;
+  showModal("You Win!", "You raised the legendary dragon! Ready to start a fresh run?", {
+    showBonus: false,
+    restartLabel: "Restart Main Game",
+  });
+  emit("victory", { level: state.level, bonusAvailable: false });
 }
 
 function dropEmoji() {
   if (state.isGameOver || state.isDroppingLocked) return;
 
   const currentTier = state.currentTier;
-  const data = TIER_DATA[currentTier];
+  const data = state.tierData[currentTier];
+  if (!data) return;
   const spawnX = clamp(
     state.dropX,
     CANVAS_SIZE.width / 2 - CONTAINER.width / 2 + data.radius,
@@ -476,24 +568,17 @@ function attachUIHandlers() {
   });
 
   ui.muteButton.addEventListener("click", toggleMute);
+
+  if (ui.bonusButton) {
+    ui.bonusButton.addEventListener("click", () => {
+      startBonusLevel();
+    });
+  }
 }
 
 function tryStartBackgroundAudio() {
   if (!state.backgroundAudio || state.audioActivated || state.muted) return;
 
-  // Handle Web Audio API
-  if (state.backgroundAudio.source) {
-    try {
-      state.backgroundAudio.context.resume();
-      state.backgroundAudio.source.start();
-      state.audioActivated = true;
-    } catch (error) {
-      console.log("Web Audio start failed:", error);
-    }
-    return;
-  }
-
-  // Handle HTML5 Audio fallback
   const playPromise = state.backgroundAudio.play();
   if (playPromise && typeof playPromise.then === "function") {
     playPromise
@@ -543,7 +628,10 @@ function toggleMute() {
   }
 }
 
-function restartGame() {
+function restartGame(level) {
+  const targetLevel = level || (state.forceMainRestart ? "base" : state.level);
+  state.forceMainRestart = false;
+
   const bodies = Composite.allBodies(state.engine.world);
   for (const body of bodies) {
     if (!body.isStatic) {
@@ -551,7 +639,27 @@ function restartGame() {
     }
   }
 
+  setLevel(targetLevel);
   resetState();
+  emit("restart", { level: targetLevel });
+}
+
+function startBonusLevel() {
+  ui.modal.classList.add("hidden");
+  const alreadyExtended = state.level === "extended";
+  setLevel("extended");
+  state.bonusUnlocked = true;
+  state.isVictory = false;
+  state.isGameOver = false;
+  state.isDroppingLocked = false;
+  state.forceMainRestart = false;
+  state.mergeQueue.length = 0;
+  state.mergingBodies.clear();
+  state.activeBody = null;
+  state.currentTier = randomTier();
+  state.nextTier = randomTier();
+  updateQueueUI();
+  emit("bonus-start", { resumed: alreadyExtended });
 }
 
 function drawBackground() {
@@ -635,7 +743,8 @@ function drawEmojis() {
   for (const body of bodies) {
     if (body.isStatic || !body.gameData) continue;
     const { tier } = body.gameData;
-    const data = TIER_DATA[tier];
+    const data = state.tierData[tier];
+    if (!data) continue;
     ctx.font = `${data.fontSize}px "Apple Color Emoji", "Segoe UI Emoji", sans-serif`;
     ctx.fillText(data.emoji, body.position.x, body.position.y + 2);
   }
@@ -659,7 +768,7 @@ function init() {
   prepareBackgroundAudio();
   document.addEventListener("pointerdown", handleFirstInteraction, { once: true });
   document.addEventListener("keydown", handleFirstInteraction, { once: true });
-  buildLadderUI();
+  setLevel(config.startLevel);
   window.addEventListener("resize", () => {
     ctx.resetTransform();
     configureCanvas();
@@ -668,6 +777,14 @@ function init() {
   setupPhysics();
   attachInputHandlers();
   attachUIHandlers();
+  emit("ready", { level: state.level });
+  if (config.autoShowVictoryModal && state.level === "base") {
+    setTimeout(() => {
+      if (!state.isVictory && !state.isGameOver) {
+        triggerVictory();
+      }
+    }, 50);
+  }
   renderLoop();
 }
 
